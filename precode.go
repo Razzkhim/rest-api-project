@@ -45,7 +45,6 @@ var tasks = map[string]Task{
 // ...
 
 func getTasks(w http.ResponseWriter, r *http.Request) {
-	// сериализуем данные из слайса artists
 	resp, err := json.MarshalIndent(tasks, "", "  ")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -54,10 +53,12 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	if _, err = w.Write(resp); err != nil {
+		fmt.Printf("Error writing response: %v", err)
+	}
 }
 
-func postTasks(w http.ResponseWriter, r *http.Request) {
+func postTask(w http.ResponseWriter, r *http.Request) {
 	var task Task
 	var buf bytes.Buffer
 
@@ -72,13 +73,19 @@ func postTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, ok := tasks[task.ID]
+	if ok {
+		http.Error(w, "Task with this ID already exists", http.StatusConflict)
+		return
+	}
+
 	tasks[task.ID] = task
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 }
 
-func getTasksID(w http.ResponseWriter, r *http.Request) {
+func getTaskID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	task, ok := tasks[id]
@@ -89,16 +96,19 @@ func getTasksID(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := json.MarshalIndent(task, "", "  ")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+
+	if _, err = w.Write(resp); err != nil {
+		fmt.Printf("Error writing response: %v", err)
+	}
 }
 
-func deleteTasksID(w http.ResponseWriter, r *http.Request) {
+func deleteTaskID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	_, ok := tasks[id]
@@ -120,11 +130,11 @@ func main() {
 	// ...
 	r.Get("/tasks", getTasks)
 
-	r.Post("/tasks", postTasks)
+	r.Post("/tasks", postTask)
 
-	r.Get("/tasks/{id}", getTasksID)
+	r.Get("/tasks/{id}", getTaskID)
 
-	r.Delete("/tasks/{id}", deleteTasksID)
+	r.Delete("/tasks/{id}", deleteTaskID)
 
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		fmt.Printf("Ошибка при запуске сервера: %s", err.Error())
